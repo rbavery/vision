@@ -198,7 +198,7 @@ def _multiscale_roi_align(
 
     tracing_results = []
     for level, (per_level_feature, scale) in enumerate(zip(x_filtered, scales)):
-        idx_in_level = torch.where(levels == level)[0]
+        idx_in_level = torch.where(levels == level)[0] #unbackedsymint
         rois_per_level = rois[idx_in_level]
 
         result_idx_in_level = roi_align(

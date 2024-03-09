@@ -4,6 +4,7 @@ import torch
 import torchvision
 from torch import Tensor
 from torchvision.extension import _assert_has_ops
+from torch.fx.experimental.symbolic_shapes import guard_size_oblivious
 
 from ..utils import _log_api_usage_once
 from ._box_convert import _box_cxcywh_to_xyxy, _box_xywh_to_xyxy, _box_xyxy_to_cxcywh, _box_xyxy_to_xywh
@@ -38,7 +39,7 @@ def nms(boxes: Tensor, scores: Tensor, iou_threshold: float) -> Tensor:
     if not torch.jit.is_scripting() and not torch.jit.is_tracing():
         _log_api_usage_once(nms)
     _assert_has_ops()
-    return torch.ops.torchvision.nms(boxes, scores, iou_threshold)
+    return torch.ops.torchvision.nms(boxes, scores, iou_threshold) #unbackedsymint
 
 
 def batched_nms(
@@ -69,10 +70,13 @@ def batched_nms(
         _log_api_usage_once(batched_nms)
     # Benchmarks that drove the following thresholds are at
     # https://github.com/pytorch/vision/issues/1311#issuecomment-781329339
-    if boxes.numel() > (4000 if boxes.device.type == "cpu" else 20000) and not torchvision._is_tracing():
-        return _batched_nms_vanilla(boxes, scores, idxs, iou_threshold)
-    else:
-        return _batched_nms_coordinate_trick(boxes, scores, idxs, iou_threshold)
+    # if boxes.numel() > (4000 if boxes.device.type == "cpu" else 20000) and not torchvision._is_tracing():
+    #     return _batched_nms_vanilla(boxes, scores, idxs, iou_threshold)
+    # else:
+    # TODO taking suggestion from https://github.com/pytorch/pytorch/issues/108805#issue-1886580277
+    # to always do coordinate trick for aot_compile
+    # edit changing to vanilla since coordinate trick fais with aot
+    return _batched_nms_vanilla(boxes, scores, idxs, iou_threshold)
 
 
 @torch.jit._script_if_tracing
@@ -86,7 +90,11 @@ def _batched_nms_coordinate_trick(
     # we add an offset to all the boxes. The offset is dependent
     # only on the class idx, and is large enough so that boxes
     # from different classes do not overlap
-    if boxes.numel() == 0:
+    n_boxes = boxes.numel()
+    # TODO ryan there is an unsupported error now after
+    # adding padding to iterate over fixed size tensors in RPN and ROI forwards
+    # torch._constrain_as_size(n_boxes, min=0, max=32640)
+    if guard_size_oblivious(n_boxes == 0):
         return torch.empty((0,), dtype=torch.int64, device=boxes.device)
     max_coordinate = boxes.max()
     offsets = idxs.to(boxes) * (max_coordinate + torch.tensor(1).to(boxes))
@@ -104,11 +112,12 @@ def _batched_nms_vanilla(
 ) -> Tensor:
     # Based on Detectron2 implementation, just manually call nms() on each class independently
     keep_mask = torch.zeros_like(scores, dtype=torch.bool)
-    for class_id in torch.unique(idxs):
-        curr_indices = torch.where(idxs == class_id)[0]
+    # TODO ryan make a config supplied at export time
+    for class_id in [0,1,2,3]:
+        curr_indices = torch.where(idxs == class_id)[0] #unbackedsymint
         curr_keep_indices = nms(boxes[curr_indices], scores[curr_indices], iou_threshold)
         keep_mask[curr_indices[curr_keep_indices]] = True
-    keep_indices = torch.where(keep_mask)[0]
+    keep_indices = torch.where(keep_mask)[0] #unbackedsymint
     return keep_indices[scores[keep_indices].sort(descending=True)[1]]
 
 
@@ -134,7 +143,7 @@ def remove_small_boxes(boxes: Tensor, min_size: float) -> Tensor:
         _log_api_usage_once(remove_small_boxes)
     ws, hs = boxes[:, 2] - boxes[:, 0], boxes[:, 3] - boxes[:, 1]
     keep = (ws >= min_size) & (hs >= min_size)
-    keep = torch.where(keep)[0]
+    keep = torch.where(keep)[0] #unbacked symint
     return keep
 
 

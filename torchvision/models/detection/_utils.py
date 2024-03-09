@@ -538,3 +538,14 @@ def _box_loss(
             return distance_box_iou_loss(bbox_per_image, matched_gt_boxes_per_image, reduction="sum", eps=eps)
         # otherwise giou
         return generalized_box_iou_loss(bbox_per_image, matched_gt_boxes_per_image, reduction="sum", eps=eps)
+
+def _pad_to_fixed_length(tensor, fixed_length, pad_value=0):
+    """Pad the tensor to fixed_length along the second dimension for AOTInductor.
+    Default is for 256x256 images
+    """
+    num_images = tensor.size(0)
+    current_size = tensor.size(1)
+    padding_size = fixed_length - current_size
+    padding = torch.full((num_images, padding_size, *tensor.shape[2:]), pad_value, dtype=tensor.dtype, device=tensor.device)
+    tensor_padded = torch.cat([tensor, padding], dim=1)
+    return tensor_padded

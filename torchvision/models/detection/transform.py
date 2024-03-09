@@ -240,7 +240,7 @@ class GeneralizedRCNNTransform(nn.Module):
             # call _onnx_batch_images() instead
             return self._onnx_batch_images(images, size_divisible)
 
-        max_size = self.max_by_axis([list(img.shape) for img in images])
+        max_size = self.max_by_axis([list(img.shape) for img in images]) #guard added
         stride = float(size_divisible)
         max_size = list(max_size)
         max_size[1] = int(math.ceil(float(max_size[1]) / stride) * stride)

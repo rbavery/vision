@@ -265,6 +265,10 @@ class RegionProposalNetwork(torch.nn.Module):
         image_range = torch.arange(num_images, device=device)
         batch_idx = image_range[:, None]
 
+        proposals = det_utils._pad_to_fixed_length(proposals, fixed_length = 163201, pad_value=0)
+        objectness =  det_utils._pad_to_fixed_length(objectness, fixed_length = 163201, pad_value=float('-inf'))
+        levels =  det_utils._pad_to_fixed_length(levels, fixed_length = 163201, pad_value=999)
+
         objectness = objectness[batch_idx, top_n_idx]
         levels = levels[batch_idx, top_n_idx]
         proposals = proposals[batch_idx, top_n_idx]
@@ -282,14 +286,14 @@ class RegionProposalNetwork(torch.nn.Module):
 
             # remove low scoring boxes
             # use >= for Backwards compatibility
-            keep = torch.where(scores >= self.score_thresh)[0]
+            keep = torch.where(scores >= self.score_thresh)[0] # unbackedsymint
             boxes, scores, lvl = boxes[keep], scores[keep], lvl[keep]
 
             # non-maximum suppression, independently done per level
             keep = box_ops.batched_nms(boxes, scores, lvl, self.nms_thresh)
 
             # keep only topk scoring predictions
-            keep = keep[: self.post_nms_top_n()]
+            keep = keep.narrow(0, 0, self.post_nms_top_n()) #guard added
             boxes, scores = boxes[keep], scores[keep]
 
             final_boxes.append(boxes)
@@ -335,14 +339,14 @@ class RegionProposalNetwork(torch.nn.Module):
 
     def forward(
         self,
-        images: ImageList,
+        images: Tensor,
         features: Dict[str, Tensor],
         targets: Optional[List[Dict[str, Tensor]]] = None,
     ) -> Tuple[List[Tensor], Dict[str, Tensor]]:
 
         """
         Args:
-            images (ImageList): images for which we want to compute the predictions
+            images (Tensor): images for which we want to compute the predictions
             features (Dict[str, Tensor]): features computed from the images that are
                 used for computing the predictions. Each tensor in the list
                 correspond to different feature levels
@@ -370,7 +374,7 @@ class RegionProposalNetwork(torch.nn.Module):
         # the proposals
         proposals = self.box_coder.decode(pred_bbox_deltas.detach(), anchors)
         proposals = proposals.view(num_images, -1, 4)
-        boxes, scores = self.filter_proposals(proposals, objectness, images.image_sizes, num_anchors_per_level)
+        boxes, scores = self.filter_proposals(proposals, objectness, images.shape[2:], num_anchors_per_level)
 
         losses = {}
         if self.training:

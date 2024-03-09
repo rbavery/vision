@@ -683,11 +683,18 @@ class RoIHeads(nn.Module):
 
         pred_boxes_list = pred_boxes.split(boxes_per_image, 0)
         pred_scores_list = pred_scores.split(boxes_per_image, 0)
+        # TODO ryan set fixed length based on a config supplied at export time
+        pred_boxes = det_utils._pad_to_fixed_length(torch.stack(pred_boxes_list, dim=0),
+                                                    fixed_length=1001,
+                                                    pad_value=0)
+        pred_scores =  det_utils._pad_to_fixed_length(torch.stack(pred_scores_list,dim=0),
+                                                      fixed_length=1001,
+                                                      pad_value=float('-inf'))
 
         all_boxes = []
         all_scores = []
         all_labels = []
-        for boxes, scores, image_shape in zip(pred_boxes_list, pred_scores_list, image_shapes):
+        for boxes, scores, image_shape in zip(pred_boxes, pred_scores, image_shapes):
             boxes = box_ops.clip_boxes_to_image(boxes, image_shape)
 
             # create labels for each prediction
@@ -705,17 +712,19 @@ class RoIHeads(nn.Module):
             labels = labels.reshape(-1)
 
             # remove low scoring boxes
-            inds = torch.where(scores > self.score_thresh)[0]
-            boxes, scores, labels = boxes[inds], scores[inds], labels[inds]
+            # TODO ryan commenting this out to preserve list size for export
+            # inds = torch.where(scores > self.score_thresh)[0]
+            # boxes, scores, labels = boxes[inds], scores[inds], labels[inds]
 
             # remove empty boxes
-            keep = box_ops.remove_small_boxes(boxes, min_size=1e-2)
-            boxes, scores, labels = boxes[keep], scores[keep], labels[keep]
+            # TODO ryan commenting this out to preserve list size for export
+            # keep = box_ops.remove_small_boxes(boxes, min_size=1e-2)
+            # boxes, scores, labels = boxes[keep], scores[keep], labels[keep]
 
             # non-maximum suppression, independently done per class
             keep = box_ops.batched_nms(boxes, scores, labels, self.nms_thresh)
             # keep only topk scoring predictions
-            keep = keep[: self.detections_per_img]
+            keep = keep.narrow(0,0, self.detections_per_img) # guard_added
             boxes, scores, labels = boxes[keep], scores[keep], labels[keep]
 
             all_boxes.append(boxes)
