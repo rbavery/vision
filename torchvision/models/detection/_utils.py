@@ -159,23 +159,22 @@ class BoxCoder:
 
         return targets
 
-    def decode(self, rel_codes: Tensor, boxes: List[Tensor]) -> Tensor:
-        torch._assert(
-            isinstance(boxes, (list, tuple)),
-            "This function expects boxes of type list or tuple.",
-        )
-        torch._assert(
-            isinstance(rel_codes, torch.Tensor),
-            "This function expects rel_codes of type torch.Tensor.",
-        )
-        boxes_per_image = [b.size(0) for b in boxes]
-        concat_boxes = torch.cat(boxes, dim=0)
+    def decode(self, rel_codes: Tensor, boxes: Tensor) -> Tensor:
+        # torch._assert(
+        #     isinstance(boxes, (list, tuple)),
+        #     "This function expects boxes of type list or tuple.",
+        # )
+        # torch._assert(
+        #     isinstance(rel_codes, torch.Tensor),
+        #     "This function expects rel_codes of type torch.Tensor.",
+        # )
+        boxes_per_image = boxes.size(1)
+        num_images = boxes.size(0)
         box_sum = 0
-        for val in boxes_per_image:
-            box_sum += val
+        box_sum += boxes_per_image * num_images
         if box_sum > 0:
             rel_codes = rel_codes.reshape(box_sum, -1)
-        pred_boxes = self.decode_single(rel_codes, concat_boxes)
+        pred_boxes = self.decode_single(rel_codes, boxes)
         if box_sum > 0:
             pred_boxes = pred_boxes.reshape(box_sum, -1, 4)
         return pred_boxes

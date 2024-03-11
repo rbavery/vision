@@ -36,6 +36,7 @@ class AnchorGenerator(nn.Module):
         self,
         sizes=((128, 256, 512),),
         aspect_ratios=((0.5, 1.0, 2.0),),
+        device=torch.device("cpu"),
     ):
         super().__init__()
 
@@ -48,8 +49,9 @@ class AnchorGenerator(nn.Module):
         self.sizes = sizes
         self.aspect_ratios = aspect_ratios
         self.cell_anchors = [
-            self.generate_anchors(size, aspect_ratio) for size, aspect_ratio in zip(sizes, aspect_ratios)
+            self.generate_anchors(size, aspect_ratio, torch.float32, device) for size, aspect_ratio in zip(sizes, aspect_ratios)
         ]
+
 
     # TODO: https://github.com/pytorch/pytorch/issues/26792
     # For every (aspect_ratios, scales) combination, output a zero-centered anchor with those values.
@@ -60,7 +62,7 @@ class AnchorGenerator(nn.Module):
         scales: List[int],
         aspect_ratios: List[float],
         dtype: torch.dtype = torch.float32,
-        device: torch.device = torch.device("cpu"),# TODO ryan I changed this to cuda
+        device: torch.device = torch.device("cuda"),# TODO ryan I changed this to cuda
     ) -> Tensor:
         scales = torch.as_tensor(scales, dtype=dtype, device=device)
         aspect_ratios = torch.as_tensor(aspect_ratios, dtype=dtype, device=device)
@@ -72,9 +74,6 @@ class AnchorGenerator(nn.Module):
 
         base_anchors = torch.stack([-ws, -hs, ws, hs], dim=1) / 2
         return base_anchors.round()
-
-    def set_cell_anchors(self, dtype: torch.dtype, device: torch.device):
-        self.cell_anchors = [cell_anchor.to(dtype=dtype, device=device) for cell_anchor in self.cell_anchors]
 
     def num_anchors_per_location(self) -> List[int]:
         return [len(s) * len(a) for s, a in zip(self.sizes, self.aspect_ratios)]
@@ -123,16 +122,8 @@ class AnchorGenerator(nn.Module):
             ]
             for g in grid_sizes
         ]
-        # TODO ryan moving this setting to set on a non attribute once anchors is returned
-        #self.set_cell_anchors(dtype, device)
-        anchors_over_all_feature_maps = self.grid_anchors(grid_sizes, strides)
-        anchors: List[List[torch.Tensor]] = []
-        for _ in range(len(image_batch.size[0])):
-            anchors_in_image = [anchors_per_feature_map for anchors_per_feature_map in anchors_over_all_feature_maps]
-            anchors.append(anchors_in_image)
-        anchors = [torch.cat(anchors_per_image) for anchors_per_image in anchors]
-        return anchors
-
+        # TODO , I'm not handling dynamic h, w here, assuming static just to get dynamic batching working and remove a for loop
+        return torch.cat(self.grid_anchors(grid_sizes, strides)).unsqueeze(dim=0).expand(image_batch.size(0),-1,-1)
 
 class DefaultBoxGenerator(nn.Module):
     """

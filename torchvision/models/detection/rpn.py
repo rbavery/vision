@@ -243,7 +243,7 @@ class RegionProposalNetwork(torch.nn.Module):
         self,
         proposals: Tensor,
         objectness: Tensor,
-        image_shapes: List[Tuple[int, int]],
+        image_shape: torch.Size,
         num_anchors_per_level: List[int],
     ) -> Tuple[List[Tensor], List[Tensor]]:
 
@@ -277,8 +277,8 @@ class RegionProposalNetwork(torch.nn.Module):
 
         final_boxes = []
         final_scores = []
-        for boxes, scores, lvl, img_shape in zip(proposals, objectness_prob, levels, image_shapes):
-            boxes = box_ops.clip_boxes_to_image(boxes, img_shape)
+        for boxes, scores, lvl in zip(proposals, objectness_prob, levels):
+            boxes = box_ops.clip_boxes_to_image(boxes, image_shape)
 
             # remove small boxes
             keep = box_ops.remove_small_boxes(boxes, self.min_size)
