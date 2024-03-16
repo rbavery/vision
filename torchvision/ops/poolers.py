@@ -84,8 +84,8 @@ class LevelMapper:
         return (target_lvls.to(torch.int64) - self.k_min).to(torch.int64)
 
 
-def _convert_to_roi_format(boxes: List[Tensor]) -> Tensor:
-    concat_boxes = torch.cat(boxes, dim=0)
+def _convert_to_roi_format(boxes: Tensor) -> Tensor:
+    concat_boxes = boxes.reshape(boxes.size(0)*boxes.size(1), -1)
     device, dtype = concat_boxes.device, concat_boxes.dtype
     ids = torch.cat(
         [torch.full_like(b[:, :1], i, dtype=dtype, layout=torch.strided, device=device) for i, b in enumerate(boxes)],
@@ -146,7 +146,7 @@ def _filter_input(x: Dict[str, Tensor], featmap_names: List[str]) -> List[Tensor
 @torch.fx.wrap
 def _multiscale_roi_align(
     x_filtered: List[Tensor],
-    boxes: List[Tensor],
+    boxes: Tensor,
     output_size: List[int],
     sampling_ratio: int,
     scales: Optional[List[float]],
@@ -289,7 +289,7 @@ class MultiScaleRoIAlign(nn.Module):
     def forward(
         self,
         x: Dict[str, Tensor],
-        boxes: List[Tensor],
+        boxes: Tensor,
         image_shapes: List[Tuple[int, int]],
     ) -> Tensor:
         """

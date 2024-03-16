@@ -669,8 +669,8 @@ class RoIHeads(nn.Module):
         self,
         class_logits,  # type: Tensor
         box_regression,  # type: Tensor
-        proposals,  # type: List[Tensor]
-        image_shapes,  # type: List[Tuple[int, int]]
+        proposals,  # type: Tensor
+        image_shapes,  # type: List[torch.Size]
     ):
         # type: (...) -> Tuple[List[Tensor], List[Tensor], List[Tensor]]
         device = class_logits.device
@@ -736,7 +736,7 @@ class RoIHeads(nn.Module):
     def forward(
         self,
         features,  # type: Dict[str, Tensor]
-        proposals,  # type: List[Tensor]
+        proposals,  # type: Tensor
         image_shapes,  # type: List[Tuple[int, int]]
         targets=None,  # type: Optional[List[Dict[str, Tensor]]]
     ):

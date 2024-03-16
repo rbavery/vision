@@ -281,13 +281,13 @@ class RegionProposalNetwork(torch.nn.Module):
             boxes = box_ops.clip_boxes_to_image(boxes, image_shape)
 
             # remove small boxes
-            keep = box_ops.remove_small_boxes(boxes, self.min_size)
-            boxes, scores, lvl = boxes[keep], scores[keep], lvl[keep]
+            # keep = box_ops.remove_small_boxes(boxes, self.min_size)
+            # boxes, scores, lvl = boxes[keep], scores[keep], lvl[keep]
 
             # remove low scoring boxes
             # use >= for Backwards compatibility
-            keep = torch.where(scores >= self.score_thresh)[0] # unbackedsymint
-            boxes, scores, lvl = boxes[keep], scores[keep], lvl[keep]
+            # keep = torch.where(scores >= self.score_thresh)[0] # unbackedsymint
+            # boxes, scores, lvl = boxes[keep], scores[keep], lvl[keep]
 
             # non-maximum suppression, independently done per level
             keep = box_ops.batched_nms(boxes, scores, lvl, self.nms_thresh)
@@ -298,7 +298,7 @@ class RegionProposalNetwork(torch.nn.Module):
 
             final_boxes.append(boxes)
             final_scores.append(scores)
-        return final_boxes, final_scores
+        return torch.stack(final_boxes, dim=0), final_scores
 
     def compute_loss(
         self, objectness: Tensor, pred_bbox_deltas: Tensor, labels: List[Tensor], regression_targets: List[Tensor]

@@ -168,13 +168,13 @@ class BoxCoder:
         #     isinstance(rel_codes, torch.Tensor),
         #     "This function expects rel_codes of type torch.Tensor.",
         # )
-        boxes_per_image = boxes.size(1)
         num_images = boxes.size(0)
+        boxes_per_image = boxes.size(1)
+        concat_boxes = boxes.reshape(-1, 4)
         box_sum = 0
-        box_sum += boxes_per_image * num_images
-        if box_sum > 0:
-            rel_codes = rel_codes.reshape(box_sum, -1)
-        pred_boxes = self.decode_single(rel_codes, boxes)
+        box_sum += num_images * boxes_per_image
+        # rel_codes = rel_codes.reshape(box_sum, -1) TODO this didn't seem to do anything
+        pred_boxes = self.decode_single(rel_codes, concat_boxes)
         if box_sum > 0:
             pred_boxes = pred_boxes.reshape(box_sum, -1, 4)
         return pred_boxes
